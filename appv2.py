@@ -149,6 +149,46 @@ e4.metric(
 )
 
 # ----------------------------
+# PLANT DESIGN SUMMARY
+# ----------------------------
+
+st.subheader("Plant Design Summary")
+
+d1, d2, d3, d4 = st.columns(4)
+
+d1.metric(
+    "Installed Stacks",
+    f"{inputs.installed_stacks}"
+)
+
+d2.metric(
+    "Total Electrode Area",
+    f"{results['total_electrode_area_m2']:,.0f} m²"
+)
+
+d3.metric(
+    "Total Plant Power",
+    f"{results['power_kW']:,.0f} kW"
+)
+
+d4.metric(
+    "Annual Brine Throughput",
+    f"{inputs.feed_flow_m3h * 8760 * inputs.uptime_fraction:,.0f} m³/yr"
+)
+
+d5, d6 = st.columns(2)
+
+d5.metric(
+    "Electricity Cost / ton",
+    f"${results['electricity_cost_per_ton']:,.0f}/t"
+)
+
+d6.metric(
+    "Stack Replacement Cost / ton",
+    f"${results['replacement_cost_per_ton']:,.0f}/t"
+)
+
+# ----------------------------
 # PROCESS INSIGHT CHARTS
 # ----------------------------
 
