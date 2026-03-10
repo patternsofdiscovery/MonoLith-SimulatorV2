@@ -138,17 +138,29 @@ with st.sidebar:
 
 results = run_model(inputs)
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Annual Production", f"{results['annual_tpy']:,.0f} t/y")
-c2.metric("SEC", f"{results['sec_kwh_per_kg']:.2f} kWh/kg")
-c3.metric("Cell Voltage", f"{results['cell_voltage_V']:.2f} V")
-c4.metric("OPEX", f"${results['opex_usd_per_ton']:,.0f}/t")
+st.subheader("Core Plant KPIs")
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("Annual Production", f"{results['annual_tpy']:,.0f} t/y")
+k2.metric("SEC", f"{results['sec_kwh_per_kg']:.2f} kWh/kg")
+k3.metric("OPEX", f"${results['opex_usd_per_ton']:,.0f}/t")
+k4.metric("CAPEX", f"${results['capex_usd'] / 1e6:,.1f}M")
 
-c5, c6, c7, c8 = st.columns(4)
-c5.metric("Active Stacks", f"{results['active_stacks']}")
-c6.metric("Total Power", f"{results['power_kW']:,.0f} kW")
-c7.metric("Overall Recovery", f"{results['overall_recovery'] * 100:.1f}%")
-c8.metric("CAPEX", f"${results['capex_usd'] / 1e6:,.1f}M")
+k5, k6, k7, k8 = st.columns(4)
+k5.metric("Active Stacks", f"{results['active_stacks']}")
+k6.metric("Total Power", f"{results['power_kW']:,.0f} kW")
+k7.metric("Overall Recovery", f"{results['overall_recovery'] * 100:.1f}%")
+k8.metric("Cell Voltage", f"{results['cell_voltage_V']:.2f} V")
+
+st.subheader("Engineering Sizing KPIs")
+e1, e2, e3, e4 = st.columns(4)
+e1.metric("Current / Stack", f"{results['stack_current_A']:,.0f} A")
+e2.metric("Power / Stack", f"{results['power_per_stack_kW']:,.1f} kW")
+e3.metric("Flow / Active Stack", f"{results['flow_per_active_stack_m3h']:,.2f} m³/h")
+e4.metric("Brine / Ton Product", f"{results['brine_m3_per_ton_product']:,.0f} m³/t")
+
+e5, e6 = st.columns(2)
+e5.metric("Total Electrode Area", f"{results['total_electrode_area_m2']:,.0f} m²")
+e6.metric("Annual Electricity Spend", f"${results['electricity_cost_usd_per_year'] / 1e6:,.2f}M/yr")
 
 if results["warnings"]:
     st.warning("Engineering warnings:\n\n- " + "\n- ".join(results["warnings"]))
@@ -156,23 +168,52 @@ if results["warnings"]:
 if results["limiters"]:
     st.info("What is limiting production:\n\n- " + "\n- ".join(results["limiters"]))
 
-st.subheader("Voltage Breakdown")
-voltage_df = pd.DataFrame(
-    {
-        "Component": ["Ohmic", "Activation", "Concentration"],
-        "Voltage (V)": [
-            results["voltage_parts"]["v_ohmic"],
-            results["voltage_parts"]["v_activation"],
-            results["voltage_parts"]["v_concentration"],
-        ],
-    }
-)
+st.subheader("Economics and Lithium Pathways")
+col1, col2 = st.columns(2)
 
-fig, ax = plt.subplots(figsize=(7, 4))
-ax.bar(voltage_df["Component"], voltage_df["Voltage (V)"])
-ax.set_ylabel("Voltage (V)")
-ax.set_title("Cell Voltage Contributions")
-st.pyplot(fig)
+with col1:
+    cost_df = pd.DataFrame(
+        {
+            "Category": ["Electricity", "Stack Replacement", "Fixed OPEX"],
+            "USD per ton": [
+                results["electricity_cost_per_ton"],
+                results["replacement_cost_per_ton"],
+                results["fixed_opex_per_ton"],
+            ],
+        }
+    )
+
+    fig_cost, ax_cost = plt.subplots(figsize=(6, 2.8))
+    ax_cost.barh(cost_df["Category"], cost_df["USD per ton"])
+    ax_cost.set_xlabel("USD per ton LiOH·H₂O")
+    ax_cost.set_title("OPEX Breakdown")
+    st.pyplot(fig_cost)
+
+with col2:
+    li_df = pd.DataFrame(
+        {
+            "Pathway": [
+                "Product Li",
+                "Recycle Li",
+                "Purge Loss",
+                "Pretreatment Loss",
+                "Polish/Product Loss",
+            ],
+            "Li kg/h": [
+                results["li_product_kgph"],
+                results["li_stack_to_recycle_kgph"] - results["li_purge_loss_kgph"],
+                results["li_purge_loss_kgph"],
+                results["li_pretreatment_loss_kgph"],
+                results["li_polish_and_product_loss_kgph"],
+            ],
+        }
+    )
+
+    fig_li, ax_li = plt.subplots(figsize=(6, 2.8))
+    ax_li.barh(li_df["Pathway"], li_df["Li kg/h"])
+    ax_li.set_xlabel("Li mass (kg/h)")
+    ax_li.set_title("Lithium Pathway Breakdown")
+    st.pyplot(fig_li)
 
 st.subheader("Mass Balance Snapshot")
 mb_df = pd.DataFrame(
@@ -244,11 +285,9 @@ st.download_button(
 )
 
 st.subheader("Sensitivity Analysis")
+s1, s2 = st.columns(2)
 
-col_a, col_b = st.columns(2)
-
-with col_a:
-    st.markdown("**SEC and Production vs Current Density**")
+with s1:
     j_values = np.linspace(50, max(60, inputs.limiting_current_density_A_m2 * 0.95), 20)
     sec_vals = []
     prod_vals = []
@@ -260,22 +299,21 @@ with col_a:
         sec_vals.append(r["sec_kwh_per_kg"])
         prod_vals.append(r["annual_tpy"])
 
-    fig1, ax1 = plt.subplots(figsize=(7, 4))
-    ax1.plot(j_values, sec_vals)
-    ax1.set_xlabel("Current Density (A/m²)")
-    ax1.set_ylabel("SEC (kWh/kg)")
-    ax1.set_title("SEC vs Current Density")
-    st.pyplot(fig1)
+    fig_sec, ax_sec = plt.subplots(figsize=(6, 3.0))
+    ax_sec.plot(j_values, sec_vals)
+    ax_sec.set_xlabel("Current Density (A/m²)")
+    ax_sec.set_ylabel("SEC (kWh/kg)")
+    ax_sec.set_title("SEC vs Current Density")
+    st.pyplot(fig_sec)
 
-    fig2, ax2 = plt.subplots(figsize=(7, 4))
-    ax2.plot(j_values, prod_vals)
-    ax2.set_xlabel("Current Density (A/m²)")
-    ax2.set_ylabel("Annual Production (t/y)")
-    ax2.set_title("Production vs Current Density")
-    st.pyplot(fig2)
+    fig_prod, ax_prod = plt.subplots(figsize=(6, 3.0))
+    ax_prod.plot(j_values, prod_vals)
+    ax_prod.set_xlabel("Current Density (A/m²)")
+    ax_prod.set_ylabel("Annual Production (t/y)")
+    ax_prod.set_title("Production vs Current Density")
+    st.pyplot(fig_prod)
 
-with col_b:
-    st.markdown("**OPEX vs Electricity Price**")
+with s2:
     power_values = np.linspace(10, 120, 20)
     opex_vals = []
 
@@ -285,9 +323,25 @@ with col_b:
         r = run_model(test_inputs)
         opex_vals.append(r["opex_usd_per_ton"])
 
-    fig3, ax3 = plt.subplots(figsize=(7, 4))
-    ax3.plot(power_values, opex_vals)
-    ax3.set_xlabel("Electricity Price ($/MWh)")
-    ax3.set_ylabel("OPEX ($/t)")
-    ax3.set_title("OPEX vs Electricity Price")
-    st.pyplot(fig3)
+    fig_opex, ax_opex = plt.subplots(figsize=(6, 3.0))
+    ax_opex.plot(power_values, opex_vals)
+    ax_opex.set_xlabel("Electricity Price ($/MWh)")
+    ax_opex.set_ylabel("OPEX ($/t)")
+    ax_opex.set_title("OPEX vs Electricity Price")
+    st.pyplot(fig_opex)
+
+    stack_values = np.arange(max(10, int(inputs.installed_stacks * 0.4)), int(inputs.installed_stacks * 1.4) + 1, max(1, int(inputs.installed_stacks / 12)))
+    annual_prod_vals = []
+
+    for n_stacks in stack_values:
+        test_inputs = copy.deepcopy(inputs)
+        test_inputs.installed_stacks = int(n_stacks)
+        r = run_model(test_inputs)
+        annual_prod_vals.append(r["annual_tpy"])
+
+    fig_stack, ax_stack = plt.subplots(figsize=(6, 3.0))
+    ax_stack.plot(stack_values, annual_prod_vals)
+    ax_stack.set_xlabel("Installed Stacks")
+    ax_stack.set_ylabel("Annual Production (t/y)")
+    ax_stack.set_title("Production vs Installed Stacks")
+    st.pyplot(fig_stack)
