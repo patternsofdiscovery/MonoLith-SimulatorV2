@@ -15,6 +15,8 @@ from model.mass_balance import (
     run_polishing,
     run_product_step,
     overall_recovery,
+    lithium_balance_summary,
+    stream_table,
 )
 from model.economics import (
     annual_production_tpy,
@@ -24,6 +26,41 @@ from model.economics import (
     total_annual_opex_usd,
     opex_per_ton_usd,
 )
+
+
+def build_assumptions_table(inputs) -> list[dict]:
+    return [
+        {"Parameter": "Feed flow", "Value": inputs.feed_flow_m3h, "Units": "m3/h"},
+        {"Parameter": "Feed Li", "Value": inputs.feed_li_gL, "Units": "g/L"},
+        {"Parameter": "Feed Mg", "Value": inputs.feed_mg_gL, "Units": "g/L"},
+        {"Parameter": "Feed Na", "Value": inputs.feed_na_gL, "Units": "g/L"},
+        {"Parameter": "Feed K", "Value": inputs.feed_k_gL, "Units": "g/L"},
+        {"Parameter": "Feed Ca", "Value": inputs.feed_ca_gL, "Units": "g/L"},
+        {"Parameter": "Current density", "Value": inputs.current_density_A_m2, "Units": "A/m2"},
+        {"Parameter": "Electrode area per stack", "Value": inputs.electrode_area_m2_per_stack, "Units": "m2/stack"},
+        {"Parameter": "Installed stacks", "Value": inputs.installed_stacks, "Units": "count"},
+        {"Parameter": "Active stack fraction", "Value": inputs.active_stack_fraction, "Units": "fraction"},
+        {"Parameter": "Faradaic efficiency", "Value": inputs.faradaic_efficiency, "Units": "fraction"},
+        {"Parameter": "Pretreatment recovery", "Value": inputs.pretreatment_recovery, "Units": "fraction"},
+        {"Parameter": "Stack recovery", "Value": inputs.stack_recovery, "Units": "fraction"},
+        {"Parameter": "Polishing recovery", "Value": inputs.polishing_recovery, "Units": "fraction"},
+        {"Parameter": "Product recovery", "Value": inputs.product_recovery, "Units": "fraction"},
+        {"Parameter": "Thermodynamic voltage", "Value": inputs.thermodynamic_voltage_V, "Units": "V"},
+        {"Parameter": "ASR", "Value": inputs.area_specific_resistance_ohm_m2, "Units": "ohm·m2"},
+        {"Parameter": "Limiting current density", "Value": inputs.limiting_current_density_A_m2, "Units": "A/m2"},
+        {"Parameter": "Activation coefficient", "Value": inputs.activation_coeff_V, "Units": "V"},
+        {"Parameter": "Uptime", "Value": inputs.uptime_fraction, "Units": "fraction"},
+        {"Parameter": "Purge fraction", "Value": inputs.purge_fraction, "Units": "fraction"},
+        {"Parameter": "Years on stream", "Value": inputs.years_on_stream, "Units": "years"},
+        {"Parameter": "ASR growth / year", "Value": inputs.asr_growth_per_year, "Units": "fraction/year"},
+        {"Parameter": "FE fade / year", "Value": inputs.fe_fade_per_year, "Units": "fraction/year"},
+        {"Parameter": "Electricity price", "Value": inputs.electricity_price_per_MWh, "Units": "$/MWh"},
+        {"Parameter": "Stack replacement cost", "Value": inputs.stack_replacement_cost_per_stack_per_year, "Units": "$/stack-year"},
+        {"Parameter": "Fixed OPEX", "Value": inputs.fixed_opex_per_year, "Units": "$/year"},
+        {"Parameter": "Base CAPEX", "Value": inputs.capex_base_usd, "Units": "$"},
+        {"Parameter": "Reference CAPEX capacity", "Value": inputs.capex_reference_tpy, "Units": "t/y"},
+        {"Parameter": "CAPEX scaling exponent", "Value": inputs.capex_scaling_exponent, "Units": "-"},
+    ]
 
 
 def run_model(inputs):
@@ -67,17 +104,22 @@ def run_model(inputs):
     power_per_stack_kW = total_power_kW / max(n_active, 1)
 
     feed = build_feed_stream(inputs)
-    pretreated = run_pretreatment(
+    pretreated, pretreat_removed = run_pretreatment(
         feed,
         li_recovery=inputs.pretreatment_recovery,
         mg_removal=0.85,
         ca_removal=0.80,
     )
-    stack_out = run_stack_section(pretreated, inputs.stack_recovery)
-    polished = run_polishing(stack_out, inputs.polishing_recovery)
-    product = run_product_step(polished, inputs.product_recovery, inputs.purge_fraction)
+    stack_product_path, recycle_path = run_stack_section(pretreated, inputs.stack_recovery)
+    polished, polish_removed = run_polishing(stack_product_path, inputs.polishing_recovery)
+    product_stream, recycle_stream, purge_stream, product_removed = run_product_step(
+        polished,
+        recycle_path,
+        inputs.product_recovery,
+        inputs.purge_fraction,
+    )
 
-    li_path_limited_product_kgph = product["Li_kgph_product"] * (41.96 / 6.94)
+    li_path_limited_product_kgph = product_stream.Li_kgph * (41.96 / 6.94)
     final_product_kgph = min(electrochem_product_kgph, li_path_limited_product_kgph)
 
     annual_tpy = annual_production_tpy(final_product_kgph, inputs.uptime_fraction)
@@ -114,15 +156,24 @@ def run_model(inputs):
         inputs.feed_flow_m3h * 8760.0 * inputs.uptime_fraction / max(annual_tpy, 1e-6)
     )
 
-    li_feed_kgph = feed["Li_kgph"]
-    li_after_pretreatment_kgph = pretreated["Li_kgph"]
-    li_pretreatment_loss_kgph = max(li_feed_kgph - li_after_pretreatment_kgph, 0.0)
-    li_stack_to_recycle_kgph = stack_out["Li_kgph_to_recycle"]
-    li_purge_loss_kgph = product["Li_kgph_purge_loss"]
-    li_product_kgph = product["Li_kgph_product"]
-    li_polish_and_product_loss_kgph = max(
-        stack_out["Li_kgph_to_product_path"] - li_product_kgph,
-        0.0,
+    li_feed_kgph = feed.Li_kgph
+    li_after_pretreatment_kgph = pretreated.Li_kgph
+    li_pretreatment_loss_kgph = pretreat_removed["Li_loss_kgph"]
+    li_stack_to_recycle_kgph = recycle_path.Li_kgph
+    li_purge_loss_kgph = purge_stream.Li_kgph
+    li_product_kgph = product_stream.Li_kgph
+    li_polish_and_product_loss_kgph = (
+        polish_removed["Li_loss_kgph"] + product_removed["Li_loss_kgph"]
+    )
+
+    balance = lithium_balance_summary(
+        feed=feed,
+        product_stream=product_stream,
+        recycle_stream=recycle_stream,
+        purge_stream=purge_stream,
+        pretreatment_losses=pretreat_removed,
+        polishing_losses=polish_removed,
+        product_losses=product_removed,
     )
 
     warnings = []
@@ -146,6 +197,8 @@ def run_model(inputs):
         warnings.append("Stack recovery is low and may be constraining product output.")
     if inputs.uptime_fraction < 0.85:
         warnings.append("Plant uptime is low for a commercial-style operating target.")
+    if abs(balance["li_balance_error_pct"]) > 0.5:
+        warnings.append("Lithium mass-balance error exceeds 0.5%; review assumptions and stream logic.")
 
     limiters = []
     if abs(final_product_kgph - electrochem_product_kgph) < 1e-9:
@@ -158,6 +211,17 @@ def run_model(inputs):
         limiters.append("Plant uptime is reducing annual production.")
     if inputs.feed_li_gL < 1.0:
         limiters.append("Low feed lithium concentration may be constraining throughput and economics.")
+
+    streams = [
+        feed,
+        pretreated,
+        stack_product_path,
+        recycle_path,
+        polished,
+        product_stream,
+        recycle_stream,
+        purge_stream,
+    ]
 
     return {
         "active_stacks": n_active,
@@ -193,11 +257,17 @@ def run_model(inputs):
         "li_purge_loss_kgph": li_purge_loss_kgph,
         "li_product_kgph": li_product_kgph,
         "li_polish_and_product_loss_kgph": li_polish_and_product_loss_kgph,
-        "feed": feed,
-        "pretreated": pretreated,
-        "stack_out": stack_out,
-        "polished": polished,
-        "product": product,
+        "feed": feed.to_dict(),
+        "pretreated": pretreated.to_dict(),
+        "stack_product_path": stack_product_path.to_dict(),
+        "recycle_path": recycle_path.to_dict(),
+        "polished": polished.to_dict(),
+        "product_stream": product_stream.to_dict(),
+        "recycle_stream": recycle_stream.to_dict(),
+        "purge_stream": purge_stream.to_dict(),
+        "stream_table": stream_table(streams),
+        "balance": balance,
+        "assumptions_table": build_assumptions_table(inputs),
         "warnings": warnings,
         "limiters": limiters,
     }
