@@ -343,6 +343,56 @@ with col2:
     st.plotly_chart(fig, use_container_width=True)
 
 # ----------------------------
+# OPERATING ENVELOPE
+# ----------------------------
+
+st.subheader("Process Operating Envelope")
+
+j_range = np.linspace(
+    50,
+    inputs.limiting_current_density_A_m2 * 0.95,
+    20,
+)
+
+stack_range = np.linspace(
+    max(10, inputs.installed_stacks * 0.5),
+    inputs.installed_stacks * 1.5,
+    20,
+)
+
+envelope_data = []
+
+for j in j_range:
+
+    for s in stack_range:
+
+        test_inputs = copy.deepcopy(inputs)
+
+        test_inputs.current_density_A_m2 = float(j)
+        test_inputs.installed_stacks = int(s)
+
+        r = run_model(test_inputs)
+
+        envelope_data.append({
+            "Current Density": j,
+            "Stacks": s,
+            "Production": r["annual_tpy"],
+            "Energy Intensity": r["sec_kwh_per_kg"],
+        })
+
+df = pd.DataFrame(envelope_data)
+
+fig = px.scatter(
+    df,
+    x="Production",
+    y="Energy Intensity",
+    color="Current Density",
+    size="Stacks",
+    title="Operating Envelope: Production vs Energy Intensity",
+)
+
+st.plotly_chart(fig, use_container_width=True)
+# ----------------------------
 # STREAM TABLE
 # ----------------------------
 
