@@ -70,8 +70,11 @@ def run_model(inputs):
     polished = run_polishing(stack_out, inputs.polishing_recovery)
     product = run_product_step(polished, inputs.product_recovery, inputs.purge_fraction)
 
-    # Use the lower of electrochemical capacity and available Li pathway
+    # Convert Li mass in product path to equivalent LiOH·H2O mass
     li_path_limited_product_kgph = product["Li_kgph_product"] * (41.96 / 6.94)
+
+    # Final production is limited by whichever is smaller:
+    # electrochemical conversion capacity or available lithium through process path
     final_product_kgph = min(electrochem_product_kgph, li_path_limited_product_kgph)
 
     annual_tpy = annual_production_tpy(final_product_kgph, inputs.uptime_fraction)
@@ -110,6 +113,28 @@ def run_model(inputs):
         warnings.append("Feed magnesium is high; pretreatment/polishing burden may be significant.")
     if inputs.active_stack_fraction < 0.75:
         warnings.append("Low active stack fraction may create availability bottlenecks.")
+    if inputs.feed_li_gL < 0.5:
+        warnings.append("Feed lithium concentration is very low; economics may be unfavorable.")
+    if inputs.purge_fraction > 0.15:
+        warnings.append("High purge fraction may be causing unnecessary lithium loss.")
+    if inputs.faradaic_efficiency < 0.80:
+        warnings.append("Faradaic efficiency is low; stack performance may be poor.")
+    if inputs.stack_recovery < 0.85:
+        warnings.append("Stack recovery is low and may be constraining product output.")
+    if inputs.uptime_fraction < 0.85:
+        warnings.append("Plant uptime is low for a commercial-style operating target.")
+
+    limiters = []
+    if abs(final_product_kgph - electrochem_product_kgph) < 1e-9:
+        limiters.append("Electrochemical stack capacity is limiting production.")
+    if abs(final_product_kgph - li_path_limited_product_kgph) < 1e-9:
+        limiters.append("Lithium availability through the process path is limiting production.")
+    if inputs.active_stack_fraction < 0.90:
+        limiters.append("Stack availability is reducing practical plant output.")
+    if inputs.uptime_fraction < 0.95:
+        limiters.append("Plant uptime is reducing annual production.")
+    if inputs.feed_li_gL < 1.0:
+        limiters.append("Low feed lithium concentration may be constraining throughput and economics.")
 
     return {
         "active_stacks": n_active,
@@ -120,6 +145,7 @@ def run_model(inputs):
         "voltage_parts": voltage_parts,
         "power_kW": total_power_kW,
         "electrochem_product_kgph": electrochem_product_kgph,
+        "li_path_limited_product_kgph": li_path_limited_product_kgph,
         "final_product_kgph": final_product_kgph,
         "annual_tpy": annual_tpy,
         "sec_kwh_per_kg": sec_kwh_per_kg,
@@ -135,4 +161,5 @@ def run_model(inputs):
         "polished": polished,
         "product": product,
         "warnings": warnings,
+        "limiters": limiters,
     }
