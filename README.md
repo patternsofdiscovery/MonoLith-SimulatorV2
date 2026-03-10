@@ -1,0 +1,1 @@
+The MONOLiTH Simulator is a physics-informed early-stage process model for electrochemical lithium refining. It is intended for pilot-scale design exploration, scenario analysis, and technoeconomic evaluation. It is not yet a substitute for detailed engineering design, equipment specification, or stamped process packages.
