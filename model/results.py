@@ -1,1 +1,138 @@
+from model.electrochem import (
+    active_stacks,
+    total_current_A,
+    degraded_asr,
+    degraded_faradaic_efficiency,
+    cell_voltage_V,
+    lioh_monohydrate_kg_per_h,
+    power_kW,
+)
+from model.mass_balance import (
+    build_feed_stream,
+    run_pretreatment,
+    run_stack_section,
+    run_polishing,
+    run_product_step,
+    overall_recovery,
+)
+from model.economics import (
+    annual_production_tpy,
+    annual_electricity_cost_usd,
+    annual_stack_replacement_cost_usd,
+    scaled_capex_usd,
+    total_annual_opex_usd,
+    opex_per_ton_usd,
+)
 
+
+def run_model(inputs):
+    n_active = active_stacks(inputs.installed_stacks, inputs.active_stack_fraction)
+
+    eff_asr = degraded_asr(
+        inputs.area_specific_resistance_ohm_m2,
+        inputs.years_on_stream,
+        inputs.asr_growth_per_year,
+    )
+    eff_fe = degraded_faradaic_efficiency(
+        inputs.faradaic_efficiency,
+        inputs.years_on_stream,
+        inputs.fe_fade_per_year,
+    )
+
+    total_current = total_current_A(
+        inputs.current_density_A_m2,
+        inputs.electrode_area_m2_per_stack,
+        inputs.installed_stacks,
+        inputs.active_stack_fraction,
+    )
+
+    voltage_parts = cell_voltage_V(
+        current_density_A_m2=inputs.current_density_A_m2,
+        limiting_current_density_A_m2=inputs.limiting_current_density_A_m2,
+        thermodynamic_voltage_V=inputs.thermodynamic_voltage_V,
+        activation_coeff_V=inputs.activation_coeff_V,
+        total_current_A=total_current,
+        area_specific_resistance_ohm_m2=eff_asr,
+        electrode_area_m2_per_stack=inputs.electrode_area_m2_per_stack,
+    )
+
+    electrochem_product_kgph = lioh_monohydrate_kg_per_h(total_current, eff_fe)
+    total_power_kW = power_kW(total_current, voltage_parts["v_cell"])
+
+    feed = build_feed_stream(inputs)
+    pretreated = run_pretreatment(
+        feed,
+        li_recovery=inputs.pretreatment_recovery,
+        mg_removal=0.85,
+        ca_removal=0.80,
+    )
+    stack_out = run_stack_section(pretreated, inputs.stack_recovery)
+    polished = run_polishing(stack_out, inputs.polishing_recovery)
+    product = run_product_step(polished, inputs.product_recovery, inputs.purge_fraction)
+
+    # Use the lower of electrochemical capacity and available Li pathway
+    li_path_limited_product_kgph = product["Li_kgph_product"] * (41.96 / 6.94)
+    final_product_kgph = min(electrochem_product_kgph, li_path_limited_product_kgph)
+
+    annual_tpy = annual_production_tpy(final_product_kgph, inputs.uptime_fraction)
+    electricity_cost = annual_electricity_cost_usd(
+        total_power_kW,
+        inputs.electricity_price_per_MWh,
+        inputs.uptime_fraction,
+    )
+    replacement_cost = annual_stack_replacement_cost_usd(
+        inputs.installed_stacks,
+        inputs.stack_replacement_cost_per_stack_per_year,
+    )
+    annual_opex = total_annual_opex_usd(
+        electricity_cost,
+        replacement_cost,
+        inputs.fixed_opex_per_year,
+    )
+    capex = scaled_capex_usd(
+        inputs.capex_base_usd,
+        annual_tpy,
+        inputs.capex_reference_tpy,
+        inputs.capex_scaling_exponent,
+    )
+
+    sec_kwh_per_kg = total_power_kW / max(final_product_kgph, 1e-6)
+    opex_ton = opex_per_ton_usd(annual_opex, annual_tpy)
+
+    warnings = []
+    if inputs.current_density_A_m2 > 0.8 * inputs.limiting_current_density_A_m2:
+        warnings.append("Current density is close to the limiting current density.")
+    if voltage_parts["v_cell"] > 5.0:
+        warnings.append("Cell voltage is high; energy consumption may be unrealistic.")
+    if sec_kwh_per_kg > 20.0:
+        warnings.append("Specific energy consumption is high.")
+    if inputs.feed_mg_gL > 0.5:
+        warnings.append("Feed magnesium is high; pretreatment/polishing burden may be significant.")
+    if inputs.active_stack_fraction < 0.75:
+        warnings.append("Low active stack fraction may create availability bottlenecks.")
+
+    return {
+        "active_stacks": n_active,
+        "effective_asr": eff_asr,
+        "effective_fe": eff_fe,
+        "total_current_A": total_current,
+        "cell_voltage_V": voltage_parts["v_cell"],
+        "voltage_parts": voltage_parts,
+        "power_kW": total_power_kW,
+        "electrochem_product_kgph": electrochem_product_kgph,
+        "final_product_kgph": final_product_kgph,
+        "annual_tpy": annual_tpy,
+        "sec_kwh_per_kg": sec_kwh_per_kg,
+        "electricity_cost_usd_per_year": electricity_cost,
+        "replacement_cost_usd_per_year": replacement_cost,
+        "annual_opex_usd": annual_opex,
+        "opex_usd_per_ton": opex_ton,
+        "capex_usd": capex,
+        "overall_recovery": overall_recovery(inputs),
+        "feed": feed,
+        "pretreated": pretreated,
+        "stack_out": stack_out,
+        "polished": polished,
+        "product": product,
+        "warnings": warnings,
+    }
