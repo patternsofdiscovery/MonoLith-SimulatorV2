@@ -1,5 +1,6 @@
 from model.electrochem import (
     active_stacks,
+    current_per_stack,
     total_current_A,
     degraded_asr,
     degraded_faradaic_efficiency,
@@ -39,6 +40,11 @@ def run_model(inputs):
         inputs.fe_fade_per_year,
     )
 
+    stack_current_A = current_per_stack(
+        inputs.current_density_A_m2,
+        inputs.electrode_area_m2_per_stack,
+    )
+
     total_current = total_current_A(
         inputs.current_density_A_m2,
         inputs.electrode_area_m2_per_stack,
@@ -58,6 +64,7 @@ def run_model(inputs):
 
     electrochem_product_kgph = lioh_monohydrate_kg_per_h(total_current, eff_fe)
     total_power_kW = power_kW(total_current, voltage_parts["v_cell"])
+    power_per_stack_kW = total_power_kW / max(n_active, 1)
 
     feed = build_feed_stream(inputs)
     pretreated = run_pretreatment(
@@ -70,11 +77,7 @@ def run_model(inputs):
     polished = run_polishing(stack_out, inputs.polishing_recovery)
     product = run_product_step(polished, inputs.product_recovery, inputs.purge_fraction)
 
-    # Convert Li mass in product path to equivalent LiOH·H2O mass
     li_path_limited_product_kgph = product["Li_kgph_product"] * (41.96 / 6.94)
-
-    # Final production is limited by whichever is smaller:
-    # electrochemical conversion capacity or available lithium through process path
     final_product_kgph = min(electrochem_product_kgph, li_path_limited_product_kgph)
 
     annual_tpy = annual_production_tpy(final_product_kgph, inputs.uptime_fraction)
@@ -101,6 +104,26 @@ def run_model(inputs):
 
     sec_kwh_per_kg = total_power_kW / max(final_product_kgph, 1e-6)
     opex_ton = opex_per_ton_usd(annual_opex, annual_tpy)
+    electricity_cost_per_ton = electricity_cost / max(annual_tpy, 1e-6)
+    replacement_cost_per_ton = replacement_cost / max(annual_tpy, 1e-6)
+    fixed_opex_per_ton = inputs.fixed_opex_per_year / max(annual_tpy, 1e-6)
+
+    flow_per_active_stack_m3h = inputs.feed_flow_m3h / max(n_active, 1)
+    total_electrode_area_m2 = inputs.electrode_area_m2_per_stack * n_active
+    brine_m3_per_ton_product = (
+        inputs.feed_flow_m3h * 8760.0 * inputs.uptime_fraction / max(annual_tpy, 1e-6)
+    )
+
+    li_feed_kgph = feed["Li_kgph"]
+    li_after_pretreatment_kgph = pretreated["Li_kgph"]
+    li_pretreatment_loss_kgph = max(li_feed_kgph - li_after_pretreatment_kgph, 0.0)
+    li_stack_to_recycle_kgph = stack_out["Li_kgph_to_recycle"]
+    li_purge_loss_kgph = product["Li_kgph_purge_loss"]
+    li_product_kgph = product["Li_kgph_product"]
+    li_polish_and_product_loss_kgph = max(
+        stack_out["Li_kgph_to_product_path"] - li_product_kgph,
+        0.0,
+    )
 
     warnings = []
     if inputs.current_density_A_m2 > 0.8 * inputs.limiting_current_density_A_m2:
@@ -140,10 +163,12 @@ def run_model(inputs):
         "active_stacks": n_active,
         "effective_asr": eff_asr,
         "effective_fe": eff_fe,
+        "stack_current_A": stack_current_A,
         "total_current_A": total_current,
         "cell_voltage_V": voltage_parts["v_cell"],
         "voltage_parts": voltage_parts,
         "power_kW": total_power_kW,
+        "power_per_stack_kW": power_per_stack_kW,
         "electrochem_product_kgph": electrochem_product_kgph,
         "li_path_limited_product_kgph": li_path_limited_product_kgph,
         "final_product_kgph": final_product_kgph,
@@ -153,8 +178,21 @@ def run_model(inputs):
         "replacement_cost_usd_per_year": replacement_cost,
         "annual_opex_usd": annual_opex,
         "opex_usd_per_ton": opex_ton,
+        "electricity_cost_per_ton": electricity_cost_per_ton,
+        "replacement_cost_per_ton": replacement_cost_per_ton,
+        "fixed_opex_per_ton": fixed_opex_per_ton,
         "capex_usd": capex,
         "overall_recovery": overall_recovery(inputs),
+        "flow_per_active_stack_m3h": flow_per_active_stack_m3h,
+        "total_electrode_area_m2": total_electrode_area_m2,
+        "brine_m3_per_ton_product": brine_m3_per_ton_product,
+        "li_feed_kgph": li_feed_kgph,
+        "li_after_pretreatment_kgph": li_after_pretreatment_kgph,
+        "li_pretreatment_loss_kgph": li_pretreatment_loss_kgph,
+        "li_stack_to_recycle_kgph": li_stack_to_recycle_kgph,
+        "li_purge_loss_kgph": li_purge_loss_kgph,
+        "li_product_kgph": li_product_kgph,
+        "li_polish_and_product_loss_kgph": li_polish_and_product_loss_kgph,
         "feed": feed,
         "pretreated": pretreated,
         "stack_out": stack_out,
