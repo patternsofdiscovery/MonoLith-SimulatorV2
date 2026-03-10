@@ -21,90 +21,26 @@ inputs = SCENARIOS[scenario_name]()
 with st.sidebar:
     st.header("Core Inputs")
 
-    inputs.feed_flow_m3h = st.number_input(
-        "Feed flow (m³/h)",
-        value=float(inputs.feed_flow_m3h),
-    )
-    inputs.feed_li_gL = st.number_input(
-        "Feed Li (g/L)",
-        value=float(inputs.feed_li_gL),
-    )
-    inputs.feed_mg_gL = st.number_input(
-        "Feed Mg (g/L)",
-        value=float(inputs.feed_mg_gL),
-    )
-    inputs.current_density_A_m2 = st.number_input(
-        "Current density (A/m²)",
-        value=float(inputs.current_density_A_m2),
-    )
-    inputs.electrode_area_m2_per_stack = st.number_input(
-        "Electrode area / stack (m²)",
-        value=float(inputs.electrode_area_m2_per_stack),
-    )
-    inputs.installed_stacks = st.number_input(
-        "Installed stacks",
-        value=int(inputs.installed_stacks),
-        step=1,
-    )
-    inputs.active_stack_fraction = st.slider(
-        "Active stack fraction",
-        0.1,
-        1.0,
-        float(inputs.active_stack_fraction),
-    )
-    inputs.faradaic_efficiency = st.slider(
-        "Faradaic efficiency",
-        0.5,
-        1.0,
-        float(inputs.faradaic_efficiency),
-    )
-    inputs.electricity_price_per_MWh = st.number_input(
-        "Electricity ($/MWh)",
-        value=float(inputs.electricity_price_per_MWh),
-    )
+    inputs.feed_flow_m3h = st.number_input("Feed flow (m³/h)", value=float(inputs.feed_flow_m3h))
+    inputs.feed_li_gL = st.number_input("Feed Li (g/L)", value=float(inputs.feed_li_gL))
+    inputs.feed_mg_gL = st.number_input("Feed Mg (g/L)", value=float(inputs.feed_mg_gL))
+    inputs.current_density_A_m2 = st.number_input("Current density (A/m²)", value=float(inputs.current_density_A_m2))
+    inputs.electrode_area_m2_per_stack = st.number_input("Electrode area / stack (m²)", value=float(inputs.electrode_area_m2_per_stack))
+    inputs.installed_stacks = st.number_input("Installed stacks", value=int(inputs.installed_stacks), step=1)
+    inputs.active_stack_fraction = st.slider("Active stack fraction", 0.1, 1.0, float(inputs.active_stack_fraction))
+    inputs.faradaic_efficiency = st.slider("Faradaic efficiency", 0.5, 1.0, float(inputs.faradaic_efficiency))
+    inputs.electricity_price_per_MWh = st.number_input("Electricity ($/MWh)", value=float(inputs.electricity_price_per_MWh))
 
     if mode == "Engineering":
         st.header("Engineering Inputs")
-        inputs.feed_na_gL = st.number_input(
-            "Feed Na (g/L)",
-            value=float(inputs.feed_na_gL),
-        )
-        inputs.feed_k_gL = st.number_input(
-            "Feed K (g/L)",
-            value=float(inputs.feed_k_gL),
-        )
-        inputs.feed_ca_gL = st.number_input(
-            "Feed Ca (g/L)",
-            value=float(inputs.feed_ca_gL),
-        )
-        inputs.stack_recovery = st.slider(
-            "Stack recovery",
-            0.5,
-            1.0,
-            float(inputs.stack_recovery),
-        )
-        inputs.polishing_recovery = st.slider(
-            "Polishing recovery",
-            0.5,
-            1.0,
-            float(inputs.polishing_recovery),
-        )
-        inputs.pretreatment_recovery = st.slider(
-            "Pretreatment recovery",
-            0.5,
-            1.0,
-            float(inputs.pretreatment_recovery),
-        )
-        inputs.product_recovery = st.slider(
-            "Product recovery",
-            0.5,
-            1.0,
-            float(inputs.product_recovery),
-        )
-        inputs.thermodynamic_voltage_V = st.number_input(
-            "Thermodynamic voltage (V)",
-            value=float(inputs.thermodynamic_voltage_V),
-        )
+        inputs.feed_na_gL = st.number_input("Feed Na (g/L)", value=float(inputs.feed_na_gL))
+        inputs.feed_k_gL = st.number_input("Feed K (g/L)", value=float(inputs.feed_k_gL))
+        inputs.feed_ca_gL = st.number_input("Feed Ca (g/L)", value=float(inputs.feed_ca_gL))
+        inputs.stack_recovery = st.slider("Stack recovery", 0.5, 1.0, float(inputs.stack_recovery))
+        inputs.polishing_recovery = st.slider("Polishing recovery", 0.5, 1.0, float(inputs.polishing_recovery))
+        inputs.pretreatment_recovery = st.slider("Pretreatment recovery", 0.5, 1.0, float(inputs.pretreatment_recovery))
+        inputs.product_recovery = st.slider("Product recovery", 0.5, 1.0, float(inputs.product_recovery))
+        inputs.thermodynamic_voltage_V = st.number_input("Thermodynamic voltage (V)", value=float(inputs.thermodynamic_voltage_V))
         inputs.area_specific_resistance_ohm_m2 = st.number_input(
             "ASR (ohm·m²)",
             value=float(inputs.area_specific_resistance_ohm_m2),
@@ -119,22 +55,9 @@ with st.sidebar:
             value=float(inputs.activation_coeff_V),
             format="%.4f",
         )
-        inputs.years_on_stream = st.number_input(
-            "Years on stream",
-            value=float(inputs.years_on_stream),
-        )
-        inputs.uptime_fraction = st.slider(
-            "Uptime fraction",
-            0.5,
-            1.0,
-            float(inputs.uptime_fraction),
-        )
-        inputs.purge_fraction = st.slider(
-            "Purge fraction",
-            0.0,
-            0.5,
-            float(inputs.purge_fraction),
-        )
+        inputs.years_on_stream = st.number_input("Years on stream", value=float(inputs.years_on_stream))
+        inputs.uptime_fraction = st.slider("Uptime fraction", 0.5, 1.0, float(inputs.uptime_fraction))
+        inputs.purge_fraction = st.slider("Purge fraction", 0.0, 0.5, float(inputs.purge_fraction))
 
 results = run_model(inputs)
 
@@ -167,6 +90,14 @@ if results["warnings"]:
 
 if results["limiters"]:
     st.info("What is limiting production:\n\n- " + "\n- ".join(results["limiters"]))
+
+balance = results["balance"]
+st.subheader("Mass Balance Check")
+b1, b2, b3, b4 = st.columns(4)
+b1.metric("Li In", f"{balance['li_in_kgph']:,.3f} kg/h")
+b2.metric("Li Accounted", f"{balance['li_accounted_kgph']:,.3f} kg/h")
+b3.metric("Balance Error", f"{balance['li_balance_error_kgph']:,.4f} kg/h")
+b4.metric("Balance Error %", f"{balance['li_balance_error_pct']:.3f}%")
 
 st.subheader("Economics and Lithium Pathways")
 col1, col2 = st.columns(2)
@@ -215,72 +146,39 @@ with col2:
     ax_li.set_title("Lithium Pathway Breakdown")
     st.pyplot(fig_li)
 
-st.subheader("Mass Balance Snapshot")
-mb_df = pd.DataFrame(
-    [
-        {
-            "Stream": "Feed",
-            "Flow (m3/h)": results["feed"].get("flow_m3h"),
-            "Li (kg/h)": results["feed"].get("Li_kgph"),
-            "Mg (kg/h)": results["feed"].get("Mg_kgph"),
-            "Na (kg/h)": results["feed"].get("Na_kgph"),
-            "K (kg/h)": results["feed"].get("K_kgph"),
-            "Ca (kg/h)": results["feed"].get("Ca_kgph"),
-        },
-        {
-            "Stream": "Pretreated",
-            "Flow (m3/h)": results["pretreated"].get("flow_m3h"),
-            "Li (kg/h)": results["pretreated"].get("Li_kgph"),
-            "Mg (kg/h)": results["pretreated"].get("Mg_kgph"),
-            "Na (kg/h)": results["pretreated"].get("Na_kgph"),
-            "K (kg/h)": results["pretreated"].get("K_kgph"),
-            "Ca (kg/h)": results["pretreated"].get("Ca_kgph"),
-        },
-        {
-            "Stream": "Stack Product Path",
-            "Flow (m3/h)": None,
-            "Li (kg/h)": results["stack_out"].get("Li_kgph_to_product_path"),
-            "Mg (kg/h)": results["stack_out"].get("Mg_kgph"),
-            "Na (kg/h)": results["stack_out"].get("Na_kgph"),
-            "K (kg/h)": results["stack_out"].get("K_kgph"),
-            "Ca (kg/h)": results["stack_out"].get("Ca_kgph"),
-        },
-        {
-            "Stream": "Recycle",
-            "Flow (m3/h)": None,
-            "Li (kg/h)": results["product"].get("Li_kgph_recycle"),
-            "Mg (kg/h)": None,
-            "Na (kg/h)": None,
-            "K (kg/h)": None,
-            "Ca (kg/h)": None,
-        },
-        {
-            "Stream": "Purge Loss",
-            "Flow (m3/h)": None,
-            "Li (kg/h)": results["product"].get("Li_kgph_purge_loss"),
-            "Mg (kg/h)": None,
-            "Na (kg/h)": None,
-            "K (kg/h)": None,
-            "Ca (kg/h)": None,
-        },
-        {
-            "Stream": "Final Product Path",
-            "Flow (m3/h)": None,
-            "Li (kg/h)": results["product"].get("Li_kgph_product"),
-            "Mg (kg/h)": results["product"].get("Mg_kgph_polished"),
-            "Na (kg/h)": None,
-            "K (kg/h)": None,
-            "Ca (kg/h)": None,
-        },
-    ]
+st.subheader("Stream Table")
+stream_df = pd.DataFrame(results["stream_table"])
+stream_df = stream_df.rename(
+    columns={
+        "name": "Stream",
+        "flow_m3h": "Flow (m3/h)",
+        "Li_kgph": "Li (kg/h)",
+        "Mg_kgph": "Mg (kg/h)",
+        "Na_kgph": "Na (kg/h)",
+        "K_kgph": "K (kg/h)",
+        "Ca_kgph": "Ca (kg/h)",
+        "water_kgph": "Water (kg/h)",
+    }
 )
-st.dataframe(mb_df, use_container_width=True)
+st.dataframe(stream_df, use_container_width=True)
 
-csv = mb_df.to_csv(index=False).encode("utf-8")
+stream_csv = stream_df.to_csv(index=False).encode("utf-8")
 st.download_button(
-    "Download mass balance CSV",
-    data=csv,
-    file_name="monolith_mass_balance.csv",
+    "Download stream table CSV",
+    data=stream_csv,
+    file_name="monolith_stream_table.csv",
+    mime="text/csv",
+)
+
+st.subheader("Assumptions Table")
+assumptions_df = pd.DataFrame(results["assumptions_table"])
+st.dataframe(assumptions_df, use_container_width=True)
+
+assumptions_csv = assumptions_df.to_csv(index=False).encode("utf-8")
+st.download_button(
+    "Download assumptions CSV",
+    data=assumptions_csv,
+    file_name="monolith_assumptions.csv",
     mime="text/csv",
 )
 
@@ -330,7 +228,11 @@ with s2:
     ax_opex.set_title("OPEX vs Electricity Price")
     st.pyplot(fig_opex)
 
-    stack_values = np.arange(max(10, int(inputs.installed_stacks * 0.4)), int(inputs.installed_stacks * 1.4) + 1, max(1, int(inputs.installed_stacks / 12)))
+    stack_values = np.arange(
+        max(10, int(inputs.installed_stacks * 0.4)),
+        int(inputs.installed_stacks * 1.4) + 1,
+        max(1, int(inputs.installed_stacks / 12)),
+    )
     annual_prod_vals = []
 
     for n_stacks in stack_values:
