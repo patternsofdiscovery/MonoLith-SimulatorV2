@@ -343,7 +343,7 @@ with col2:
     st.plotly_chart(fig, use_container_width=True)
 
 # ----------------------------
-# OPERATING ENVELOPE
+# OPERATING ENVELOPE HEATMAP
 # ----------------------------
 
 st.subheader("Process Operating Envelope")
@@ -360,9 +360,11 @@ stack_range = np.linspace(
     20,
 )
 
-envelope_data = []
+heatmap_data = []
 
 for j in j_range:
+
+    row = []
 
     for s in stack_range:
 
@@ -373,25 +375,28 @@ for j in j_range:
 
         r = run_model(test_inputs)
 
-        envelope_data.append({
-            "Current Density": j,
-            "Stacks": s,
-            "Production": r["annual_tpy"],
-            "Energy Intensity": r["sec_kwh_per_kg"],
-        })
+        row.append(r["sec_kwh_per_kg"])
 
-df = pd.DataFrame(envelope_data)
+    heatmap_data.append(row)
 
-fig = px.scatter(
-    df,
-    x="Production",
-    y="Energy Intensity",
-    color="Current Density",
-    size="Stacks",
-    title="Operating Envelope: Production vs Energy Intensity",
+heatmap_df = pd.DataFrame(
+    heatmap_data,
+    index=j_range,
+    columns=stack_range,
+)
+
+fig = px.imshow(
+    heatmap_df,
+    labels=dict(
+        x="Installed Stacks",
+        y="Current Density (A/m²)",
+        color="Energy Intensity (kWh/kg)",
+    ),
+    title="Operating Envelope (Energy Intensity)",
 )
 
 st.plotly_chart(fig, use_container_width=True)
+
 # ----------------------------
 # STREAM TABLE
 # ----------------------------
